@@ -2,10 +2,13 @@
 (() => {
   /* ---------------- DOM --------------------- */
   // Join phase
-  const joinPhase  = document.getElementById('joinPhase');
-  const nameInput  = document.getElementById('nameInput');
-  const groupInput = document.getElementById('groupInput');
-  const joinBtn    = document.getElementById('joinBtn');
+  const joinPhase        = document.getElementById('joinPhase');
+  const nameInput        = document.getElementById('nameInput');
+  const groupInput       = document.getElementById('groupInput');
+  const joinBtn          = document.getElementById('joinBtn');
+  const prefetchCheckbox = document.getElementById('prefetchCheckbox');
+  const pagesRow         = document.getElementById('pagesRow');
+  const pagesInput       = document.getElementById('pagesInput');
 
   // Build-list phase
   const listPhase  = document.getElementById('listPhase');
@@ -29,12 +32,22 @@
   let username = '';
   let groupId  = '';
   let ws       = null;
-  const posterCache = new Map();            // title → poster URL
+  let prefetchPages = 0;               // 0 = disabled
+  const posterCache = new Map();       // title → poster URL
+
+  /* ---------- Checkbox interaction ---------- */
+  prefetchCheckbox.addEventListener('change', () => {
+    pagesRow.classList.toggle('hidden', !prefetchCheckbox.checked);
+  });
 
   /* ---------------- Join / connect ---------- */
   joinBtn.addEventListener('click', () => {
     username = (nameInput.value.trim() || `User${Math.floor(Math.random()*1000)}`);
     groupId  = (groupInput.value.trim()  || 'default');
+
+    prefetchPages = prefetchCheckbox.checked
+      ? Math.max(1, parseInt(pagesInput.value, 10) || 1)
+      : 0;
 
     groupTag.textContent = `Group: ${groupId}`;
     joinPhase.classList.add('hidden');
@@ -46,8 +59,13 @@
   function connectWebSocket(){
     ws = new WebSocket(`${location.protocol.replace('http','ws')}//${location.host}`);
 
-    ws.addEventListener('open', () => {
+    ws.addEventListener('open', async () => {
       ws.send(JSON.stringify({ type:'join', username, groupId }));
+
+      // Prefetch popular movies for everyone if enabled
+      if (prefetchPages > 0){
+        await prefetchTopMovies(prefetchPages);
+      }
     });
 
     ws.addEventListener('message', ({data}) => {
@@ -68,6 +86,27 @@
           break;
       }
     });
+  }
+
+  /* ---------- Prefetch helper --------------- */
+  async function prefetchTopMovies(pages){
+    for (let p = 0; p < pages; p++){
+      const skip = p * 50;
+      try {
+        const res  = await fetch(`https://cinemeta-catalogs.strem.io/top/catalog/movie/top/skip=${skip}.json`);
+        const data = await res.json();
+        (data.metas || []).forEach(meta => {
+          if (!meta.name) return;
+          ws.send(JSON.stringify({
+            type:  'addMovie',
+            title: meta.name+ " ("+meta.imdbRating+")",
+            poster: meta.poster || ''
+          }));
+        });
+      } catch (e){
+        /* swallow */
+      }
+    }
   }
 
   /* ---------------- Build-list interactions -- */

@@ -93,6 +93,14 @@ html, body {
   background: transparent;
 }
 
+/* Checkbox row */
+.checkbox-row {
+  gap: 8px;
+}
+.checkbox-row label {
+  font-size: 1rem;
+}
+
 /* Movie & member lists */
 .movie-list,
 .member-list {

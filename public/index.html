@@ -31,6 +31,18 @@
           <input id="groupInput" class="mdc-text-field__input" placeholder="Group ID (leave blank for default)">
         </div>
 
+        <!-- Prefetch checkbox -->
+        <div class="input-row checkbox-row">
+          <input type="checkbox" id="prefetchCheckbox">
+          <label for="prefetchCheckbox">Pre-load top movies</label>
+        </div>
+
+        <!-- Pages input (shown only when checkbox checked) -->
+        <div id="pagesRow" class="input-row hidden">
+          <input id="pagesInput" type="number" min="1" value="1"
+                 class="mdc-text-field__input" placeholder="Pages (x50 movies)">
+        </div>
+
         <button id="joinBtn" class="mdc-button mdc-button--raised primary-btn">
           <span class="mdc-button__ripple"></span>
           Join Group

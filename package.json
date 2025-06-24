@@ -1,0 +1,15 @@
+{
+  "name": "movie-tinder",
+  "version": "1.0.0",
+  "description": "Material‑styled Tinder‑like app for deciding movies in a group",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^5.1.0",
+    "ws": "^8.18.2"
+  }
+}

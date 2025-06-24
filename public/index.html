@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Movie-Tinder</title>
+
+  <!-- Roboto + Material Icons -->
+  <link href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+  <!-- Material Components for Web -->
+  <link rel="stylesheet" href="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.css">
+  <script defer src="https://unpkg.com/material-components-web@latest/dist/material-components-web.min.js"></script>
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+
+    <!-- Phase 0 : join/create -->
+    <div id="joinPhase" class="phase">
+      <main class="content join-content mdc-elevation--z2">
+        <h2 class="card-title">Join or Create a Group</h2>
+
+        <div class="input-row">
+          <input id="nameInput" class="mdc-text-field__input" placeholder="Your Name">
+        </div>
+
+        <div class="input-row">
+          <input id="groupInput" class="mdc-text-field__input" placeholder="Group ID (leave blank for default)">
+        </div>
+
+        <button id="joinBtn" class="mdc-button mdc-button--raised primary-btn">
+          <span class="mdc-button__ripple"></span>
+          Join Group
+        </button>
+      </main>
+    </div>
+
+    <!-- Phase 1 : build list -->
+    <div id="listPhase" class="phase hidden">
+      <header class="top-bar mdc-elevation--z4">
+        <span class="logo">🎬 Movie-Tinder</span>
+        <span id="groupTag" class="group-id"></span>
+      </header>
+
+      <main class="content">
+        <div class="card mdc-elevation--z2">
+          <h2 class="card-title">Suggest movies</h2>
+
+          <div class="input-row">
+            <input id="movieInput" class="mdc-text-field__input" placeholder="Enter movie title…"/>
+            <button id="addBtn" class="mdc-button mdc-button--raised">
+              <span class="mdc-button__ripple"></span>
+              <span class="material-icons">add</span>
+            </button>
+          </div>
+
+          <h3 class="subhead">Movies</h3>
+          <ul id="movieList" class="movie-list"></ul>
+
+          <h3 class="subhead">Members</h3>
+          <ul id="memberList" class="member-list"></ul>
+        </div>
+
+        <button id="doneBtn" class="mdc-button mdc-button--raised primary-btn">
+          <span class="mdc-button__ripple"></span>
+          Done
+        </button>
+      </main>
+    </div>
+
+    <!-- Phase 2 : swipe -->
+    <div id="swipePhase" class="phase hidden">
+      <header class="top-bar mdc-elevation--z4">
+        <span class="logo">🎬 Swipe to choose</span>
+      </header>
+
+      <main class="content swipe-content">
+        <div id="cardStack" class="card-stack"></div>
+      </main>
+    </div>
+
+    <!-- Phase 3 : chosen -->
+    <div id="chosenPhase" class="phase hidden">
+      <header class="top-bar mdc-elevation--z4">
+        <span class="logo">🎉 Movie Selected</span>
+      </header>
+
+      <main class="content chosen-content">
+        <div id="chosenCard" class="chosen-card"></div>
+        <p id="chosenInfo" class="chosen-info"></p>
+      </main>
+    </div>
+
+  </div>
+
+  <script src="main.js" defer></script>
+</body>
+</html>

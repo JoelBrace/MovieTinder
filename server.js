@@ -11,7 +11,8 @@ app.use(express.static('public'));
 const server = http.createServer(app);
 const wss    = new WebSocketServer({ server });
 
-/* ---------------- In-memory group store ---------------- */
+/* ------------ In-memory group store ------------ */
+/* group.movies now maps title → { poster, ytId }  */
 const groups = new Map();  // groupId → {members, movies, done, swipeAccept}
 
 function broadcast(group, data){
@@ -37,10 +38,10 @@ wss.on('connection', ws => {
 
         if (!groups.has(groupId)){
           groups.set(groupId, {
-            members: new Map(),   // username → ws
-            movies:  new Map(),   // title    → poster
-            done:    new Set(),   // usernames
-            swipeAccept: new Map()// title    → Set(usernames)
+            members: new Map(),          // username → ws
+            movies : new Map(),          // title    → {poster, ytId}
+            done   : new Set(),          // usernames
+            swipeAccept: new Map()       // title    → Set(usernames)
           });
         }
         const group = groups.get(groupId);
@@ -54,7 +55,10 @@ wss.on('connection', ws => {
       case 'addMovie': {
         if (!groupId) return;
         const group = groups.get(groupId);
-        group.movies.set(msg.title.trim(), (msg.poster || '').trim());
+        group.movies.set(
+          msg.title.trim(),
+          { poster: (msg.poster || '').trim(), ytId: (msg.ytId || '').trim() }
+        );
 
         broadcast(group, buildGroupUpdate(group));
         break;
@@ -80,8 +84,9 @@ wss.on('connection', ws => {
         broadcast(group, buildGroupUpdate(group));
 
         if (group.done.size === group.members.size && group.movies.size > 0){
-          const shuffled = Array.from(group.movies, ([title, poster]) => ({title, poster}))
-                                 .sort(() => Math.random() - 0.5);
+          const shuffled = Array
+            .from(group.movies, ([title, info]) => ({title, poster:info.poster, ytId:info.ytId}))
+            .sort(() => Math.random() - 0.5);
 
           broadcast(group, { type:'phase', phase:'swipe', movies:shuffled });
         }
@@ -99,10 +104,11 @@ wss.on('connection', ws => {
         group.swipeAccept.get(title).add(username);
 
         if (group.swipeAccept.get(title).size === group.members.size){
+          const info = group.movies.get(title) || {};
           broadcast(group, {
-            type: 'movieChosen',
+            type : 'movieChosen',
             movie: title,
-            poster: group.movies.get(title) || '',
+            poster: info.poster || '',
             chosenBy: username
           });
 
@@ -134,9 +140,10 @@ wss.on('connection', ws => {
 /* ---------------- Helpers ---------------- */
 function buildGroupUpdate(group){
   return {
-    type:    'groupUpdate',
-    movies:  Array.from(group.movies, ([title, poster]) => ({title, poster})),
-    done:    Array.from(group.done),
+    type   : 'groupUpdate',
+    movies : Array.from(group.movies, ([title, info]) =>
+                 ({title, poster:info.poster, ytId:info.ytId}) ),
+    done   : Array.from(group.done),
     members: Array.from(group.members.keys())
   };
 }

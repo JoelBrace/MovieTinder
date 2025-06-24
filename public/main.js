@@ -32,8 +32,8 @@
   let username = '';
   let groupId  = '';
   let ws       = null;
-  let prefetchPages = 0;               // 0 = disabled
-  const posterCache = new Map();       // title → poster URL
+  let prefetchPages = 0;                 // 0 = disabled
+  const metaCache = new Map();           // title → { poster, ytId }
 
   /* ---------- Checkbox interaction ---------- */
   prefetchCheckbox.addEventListener('change', () => {
@@ -62,7 +62,7 @@
     ws.addEventListener('open', async () => {
       ws.send(JSON.stringify({ type:'join', username, groupId }));
 
-      // Prefetch popular movies for everyone if enabled
+      // Prefetch popular movies for the whole group
       if (prefetchPages > 0){
         await prefetchTopMovies(prefetchPages);
       }
@@ -98,14 +98,13 @@
         (data.metas || []).forEach(meta => {
           if (!meta.name) return;
           ws.send(JSON.stringify({
-            type:  'addMovie',
-            title: meta.name+ " ("+meta.imdbRating+")",
-            poster: meta.poster || ''
+            type : 'addMovie',
+            title: meta.name,
+            poster: meta.poster || '',
+            ytId : (meta.trailerStreams && meta.trailerStreams[0] && meta.trailerStreams[0].ytId) || ''
           }));
         });
-      } catch (e){
-        /* swallow */
-      }
+      } catch {/* network/JSON errors can be ignored */}
     }
   }
 
@@ -119,8 +118,8 @@
     const title = movieInput.value.trim();
     if (!title) return;
 
-    const poster = await getPoster(title);
-    ws.send(JSON.stringify({ type:'addMovie', title, poster }));
+    const {poster, ytId} = await fetchMeta(title);
+    ws.send(JSON.stringify({ type:'addMovie', title, poster, ytId }));
 
     movieInput.value = '';
     movieInput.focus();
@@ -130,18 +129,23 @@
     ws.send(JSON.stringify({ type:'done' }));
   });
 
-  /* ---------------- Poster lookup ------------ */
-  async function getPoster(title){
-    if (posterCache.has(title)) return posterCache.get(title);
+  /* ---------------- Meta lookup ------------- */
+  async function fetchMeta(title){
+    if (metaCache.has(title)) return metaCache.get(title);
+
     const query  = title.split(' ').join('+');
     try {
       const res   = await fetch(`https://v3-cinemeta.strem.io/catalog/movie/top/search=${query}.json`);
       const data  = await res.json();
-      const poster = (data.metas && data.metas[0] && data.metas[0].poster) || '';
-      posterCache.set(title, poster);
-      return poster;
+      const m     = (data.metas && data.metas[0]) || {};
+      const meta  = {
+        poster: m.poster || '',
+        ytId  : (m.trailerStreams && m.trailerStreams[0] && m.trailerStreams[0].ytId) || ''
+      };
+      metaCache.set(title, meta);
+      return meta;
     } catch {
-      return '';
+      return {poster:'', ytId:''};
     }
   }
 
@@ -200,8 +204,9 @@
 
     movies.forEach((m,i) => {
       const card = document.createElement('div');
-      card.className = 'swipe-card';
-      card.style.zIndex = movies.length - i;
+      card.className   = 'swipe-card';
+      card.style.zIndex = i + 1;          // last appended = top
+      card.dataset.ytid = m.ytId || '';
 
       if (m.poster){
         card.style.backgroundImage    = `url(${m.poster})`;
@@ -213,6 +218,50 @@
       enableSwipe(card, m);
       cardStack.appendChild(card);
     });
+
+    activateTopCard();                     // trailer below first card
+  }
+
+  /** guarantee trailer area node exists */
+  function ensureTrailerArea(){
+    let area = document.getElementById('trailerArea');
+    if (!area){
+      area = document.createElement('div');
+      area.id = 'trailerArea';
+      area.className = 'trailer-area hidden';
+      cardStack.parentNode.appendChild(area);   // directly beneath stack
+    }
+    return area;
+  }
+
+  /** Display trailer for current top-most card beneath the stack */
+  function activateTopCard(){
+    const area = ensureTrailerArea();
+    area.innerHTML = '';                   // clear previous trailer
+
+    const cards = Array.from(cardStack.children);
+    if (!cards.length){
+      area.classList.add('hidden');
+      return;
+    }
+
+    // card with highest z-index
+    const topCard =
+      cards.reduce((a,b) => (+b.style.zIndex > +a.style.zIndex ? b : a), cards[0]);
+
+    if (!topCard.dataset.ytid){
+      area.classList.add('hidden');
+      return;
+    }
+
+    const iframe = document.createElement('iframe');
+    iframe.className = 'trailer-frame';
+    iframe.src = `https://www.youtube.com/embed/${topCard.dataset.ytid}` +
+                 '?autoplay=1&mute=1&playsinline=1&rel=0';
+    iframe.allow = 'autoplay; encrypted-media';
+    iframe.allowFullscreen = true;
+    area.appendChild(iframe);
+    area.classList.remove('hidden');
   }
 
   function enableSwipe(card, movie){
@@ -250,18 +299,19 @@
     const endX = decision === 'accept' ? 1000 : -1000;
     card.style.transition = 'transform .4s ease-out';
     card.style.transform  = `translate(${endX}px,0) rotate(${endX/15}deg)`;
-    setTimeout(() => card.remove(), 400);
+    setTimeout(() => {
+      card.remove();
+      activateTopCard();                   // update trailer
+    }, 400);
     ws.send(JSON.stringify({ type:'swipe', title: movie.title, decision }));
   }
 
   /* ---------------- Chosen movie ------------- */
   function showChosen(movieTitle, poster, by){
-    // Hide all other phases
     joinPhase.classList.add('hidden');
     listPhase.classList.add('hidden');
     swipePhase.classList.add('hidden');
 
-    // Populate chosen card
     chosenCard.style.backgroundImage = `url(${poster || ''})`;
     chosenCard.innerHTML = `<div class="title-overlay">${movieTitle}</div>`;
     chosenInfo.textContent = `Nominated by ${by}. 🎉`;

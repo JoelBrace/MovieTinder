@@ -97,9 +97,12 @@
         const data = await res.json();
         (data.metas || []).forEach(meta => {
           if (!meta.name) return;
+
+          var title = meta.name + (meta.imdbRating ? " (" + meta.imdbRating + ")" : "");
+
           ws.send(JSON.stringify({
             type : 'addMovie',
-            title: meta.name,
+            title: title,
             poster: meta.poster || '',
             ytId : (meta.trailerStreams && meta.trailerStreams[0] && meta.trailerStreams[0].ytId) || ''
           }));

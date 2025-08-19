@@ -200,30 +200,52 @@
   }
 
   /* ---------------- Swipe phase -------------- */
+  // Virtualized swipe deck state (only render top + next)
+  const swipeState = { movies: [], topIdx: -1 };
+
   function startSwipePhase(movies){
-    listPhase.classList.add('hidden');
-    swipePhase.classList.remove('hidden');
-    cardStack.innerHTML = '';
+  listPhase.classList.add('hidden');
+  swipePhase.classList.remove('hidden');
+  cardStack.innerHTML = '';
 
-    movies.forEach((m,i) => {
-      const card = document.createElement('div');
-      card.className   = 'swipe-card';
-      card.style.zIndex = i + 1;          // last appended = top
-      card.dataset.ytid = m.ytId || '';
+  // Save state: top of stack is the *last* movie (preserve existing UX)
+  swipeState.movies = movies || [];
+  swipeState.topIdx = swipeState.movies.length - 1;
 
-      if (m.poster){
-        card.style.backgroundImage    = `url(${m.poster})`;
-        card.style.backgroundSize     = 'cover';
-        card.style.backgroundPosition = 'center';
-      }
-      card.innerHTML = `<div class="title-overlay">${m.title}</div>`;
+  // Render at most two cards: the "next" (behind) first, then the "top" (front)
+  appendCardIfExists(swipeState.topIdx - 1, 1);
+  appendCardIfExists(swipeState.topIdx, 2);
 
-      enableSwipe(card, m);
-      cardStack.appendChild(card);
-    });
+  // Show trailer for the current top card
+  activateTopCard();
+}
 
-    activateTopCard();                     // trailer below first card
+/** Append a single card (if index is valid) with a given zIndex. */
+function appendCardIfExists(idx, zIndex){
+  if (idx < 0 || idx >= swipeState.movies.length) return;
+  const m = swipeState.movies[idx];
+
+  const card = document.createElement('div');
+  card.className = 'swipe-card';
+  card.style.zIndex = zIndex;
+  card.dataset.ytid = m.ytId || '';
+  card.dataset.idx  = String(idx);
+
+  if (m.poster){
+    card.style.backgroundImage    = `url(${m.poster})`;
+    card.style.backgroundSize     = 'cover';
+    card.style.backgroundPosition = 'center';
   }
+  card.innerHTML = `<div class="title-overlay">${m.title}</div>`;
+
+  // Attach gesture handling
+  enableSwipe(card, m);
+
+  // Add to stack
+  cardStack.appendChild(card);
+}
+
+
 
   /** guarantee trailer area node exists */
   function ensureTrailerArea(){
@@ -299,15 +321,43 @@
   }
 
   function swipeDecision(card, movie, decision){
-    const endX = decision === 'accept' ? 1000 : -1000;
-    card.style.transition = 'transform .4s ease-out';
-    card.style.transform  = `translate(${endX}px,0) rotate(${endX/15}deg)`;
-    setTimeout(() => {
-      card.remove();
-      activateTopCard();                   // update trailer
-    }, 400);
-    ws.send(JSON.stringify({ type:'swipe', title: movie.title, decision }));
-  }
+  const endX = decision === 'accept' ? 1000 : -1000;
+  card.style.transition = 'transform .4s ease-out';
+  card.style.transform  = `translate(${endX}px,0) rotate(${endX/15}deg)`;
+
+  setTimeout(() => {
+    // Remove the swiped (top) card
+    card.remove();
+
+    // Advance the top index (move to previous item in the array)
+    swipeState.topIdx = Math.max(-1, swipeState.topIdx - 1);
+
+    // Promote any remaining card to top with higher z-index
+    const cards = Array.from(cardStack.children);
+    if (cards.length > 0){
+      // Lowest z for all, top for the last one
+      cards.forEach(c => c.style.zIndex = 1);
+      cards[cards.length - 1].style.zIndex = 2;
+    }
+
+    // Append a new "next" card behind the top, if available
+    const nextIdx = swipeState.topIdx - 1;
+    if (cardStack.children.length < 2){
+      appendCardIfExists(nextIdx, 1);
+    }
+
+    // Trim extras if any (safety)
+    while (cardStack.children.length > 2){
+      cardStack.removeChild(cardStack.firstElementChild);
+    }
+
+    // Update trailer for the new top card
+    activateTopCard();
+  }, 400);
+
+  // Notify server of decision
+  ws.send(JSON.stringify({ type:'swipe', title: movie.title, decision }));
+}
 
   /* ---------------- Chosen movie ------------- */
   function showChosen(movieTitle, poster, by){
